@@ -258,9 +258,82 @@ def calculate_priority(df: pd.DataFrame) -> pd.DataFrame:
     df["priority_score"] = df["priority_score"].round(3)
 
     return df
+
+def assign_clusters(G: nx.DiGraph, df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    UG = G.to_undirected()
+
+    communities = nx.community.louvain_communities(
+        UG,
+        weight="sum_kzt",
+        seed=42
+    )
+
+    cluster_map = {}
+
+    for cluster_id, community in enumerate(communities):
+        for gid in community:
+            cluster_map[gid] = cluster_id
+
+    next_cluster = len(communities)
+
+    for gid in df["gid"]:
+        if gid not in cluster_map:
+            cluster_map[gid] = next_cluster
+            next_cluster += 1
+
+    df["cluster_id"] = df["gid"].map(cluster_map).astype(int)
+
+    return df
+
+def build_clusters_csv(G: nx.DiGraph, df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+
+    for cluster_id, group in df.groupby("cluster_id"):
+        gids = set(group["gid"])
+
+        # сколько узлов
+        n_nodes = len(group)
+
+        # сколько seed
+        n_seed = int(group["is_seed"].sum())
+
+        # внутренний оборот
+        sum_kzt_internal = 0.0
+
+        for u, v, data in G.edges(data=True):
+            if u in gids and v in gids:
+                sum_kzt_internal += data.get("sum_kzt", 0.0)
+
+        # топ-5 узлов по priority_score
+        top_gids = (
+            group.sort_values("priority_score", ascending=False)
+            .head(5)["gid"]
+            .astype(str)
+            .tolist()
+        )
+
+        # простая гипотеза
+        role_counts = group["role"].value_counts()
+
+        main_role = role_counts.index[0] if len(role_counts) > 0 else "unknown"
+
+        hypothesis = f"Кластер с преобладающей ролью {main_role}"
+
+        rows.append({
+            "cluster_id": cluster_id,
+            "n_nodes": n_nodes,
+            "n_seed": n_seed,
+            "sum_kzt_internal": round(sum_kzt_internal, 2),
+            "top_gids": ",".join(top_gids),
+            "hypothesis": hypothesis
+        })
+
+    return pd.DataFrame(rows)
 # ---------------------------------------------------------------- выгрузки
 
-def write_outputs(df: pd.DataFrame, out_dir: Path):
+def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. nodes_roles.csv
@@ -269,6 +342,8 @@ def write_outputs(df: pd.DataFrame, out_dir: Path):
             "gid",
             "role",
             "role_score",
+            "cluster_id",
+            "priority_score",
             "evidence",
             "in_deg",
             "out_deg",
@@ -287,53 +362,33 @@ def write_outputs(df: pd.DataFrame, out_dir: Path):
     # Пока priority_score тоже сделаем позже
     #roles["priority_score"] = 0.0
 
-    # Ставим обязательные колонки вперед
-    roles = df[
-        [
-            "gid",
-            "role",
-            "role_score",
-            "priority_score",
-            "evidence",
-            "in_deg",
-            "out_deg",
-            "in_kzt",
-            "out_kzt",
-            "pagerank",
-            "pass_through",
-            "depth",
-            "is_seed",
-            "truncated_by_depth"
-        ]
-    ].copy()
-
-    roles["cluster_id"] = -1
 
     roles.to_csv(out_dir / "nodes_roles.csv", index=False)
 
-    # 2. clusters.csv — пока пустой
-    pd.DataFrame(
-        columns=[
-            "cluster_id",
-            "n_nodes",
-            "n_seed",
-            "sum_kzt_internal",
-            "top_gids",
-            "hypothesis"
-        ]
-    ).to_csv(out_dir / "clusters.csv", index=False)
+    # 2. clusters.csv — норм
+    clusters_df.to_csv(out_dir / "clusters.csv", index=False)
 
-    # 3. top_nodes.csv — пока пустой
-    pd.DataFrame(
-        columns=[
+    # 3. top_nodes.csv — норм
+    top = df.sort_values(
+        by="priority_score",
+        ascending=False
+    ).head(20).copy()
+
+    top["rank"] = range(1, len(top) + 1)
+    top["why"] = top["evidence"]
+
+    top = top[
+        [
             "rank",
             "gid",
             "role",
             "priority_score",
             "why"
         ]
-    ).to_csv(out_dir / "top_nodes.csv", index=False)
+    ]
 
+    top.to_csv(out_dir / "top_nodes.csv", index=False)
+    
     print(f"Выгрузки записаны в {out_dir}/")
 
 
@@ -375,8 +430,11 @@ def main():
     df = basic_features(G, nodes)
     df = assign_roles(df)
     df = calculate_priority(df)
+    df = assign_clusters(G, df)
 
-    write_outputs(df, Path(a.out))
+    clusters_df = build_clusters_csv(G, df)
+    
+    write_outputs(df, clusters_df, Path(a.out))
 
     hints(G, df)
 
