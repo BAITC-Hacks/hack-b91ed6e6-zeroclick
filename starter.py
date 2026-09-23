@@ -9,7 +9,7 @@
   4. пишет три выгрузки в требуемой ТЗ схеме — с ПУСТЫМИ ролями.
 
 Чего он НЕ делает — это ваша работа:
-  * не присваивает роли,
+  * не присваивает роли, * Сделано
   * не кластеризует,
   * не ранжирует узлы,
   * не рисует граф.
@@ -103,35 +103,238 @@ def basic_features(G: nx.DiGraph, nodes: pd.DataFrame) -> pd.DataFrame:
     df["truncated_by_depth"] = (df.depth == 4) & (df.out_deg == 0)
     return df
 
+def assign_roles(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
 
+    # Пороги считаем от самих данных
+    in_deg_high = max(3, df["in_deg"].quantile(0.90))
+    out_deg_high = max(10, df["out_deg"].quantile(0.90))
+    pagerank_high = df["pagerank"].quantile(0.95)
+
+    roles = []
+    scores = []
+    evidence = []
+
+    for _, r in df.iterrows():
+
+        # 1. COORDINATOR
+        # Очень важный узел по PageRank + есть и входящие, и исходящие связи
+        if (
+            r["pagerank"] >= pagerank_high
+            and r["in_deg"] > 0
+            and r["out_deg"] > 0
+        ):
+            role = "coordinator"
+            score = 0.95
+            reason = (
+                f"Высокий PageRank={r['pagerank']:.6f}, "
+                f"входов={r['in_deg']}, выходов={r['out_deg']}"
+            )
+
+        # 2. DISTRIBUTOR
+        # Отправляет деньги большому числу разных клиентов
+        elif r["out_deg"] >= out_deg_high:
+            role = "distributor"
+            score = min(1.0, 0.7 + r["out_deg"] / max(out_deg_high, 1) * 0.1)
+            reason = (
+                f"Отправляет {r['out_deg']} получателям, "
+                f"исходящая сумма={r['out_kzt']:.0f} KZT"
+            )
+
+        # 3. CONSOLIDATOR
+        # Получает деньги от большого числа разных клиентов
+        elif r["in_deg"] >= in_deg_high:
+            role = "consolidator"
+            score = min(1.0, 0.7 + r["in_deg"] / max(in_deg_high, 1) * 0.1)
+            reason = (
+                f"Получает от {r['in_deg']} плательщиков, "
+                f"входящая сумма={r['in_kzt']:.0f} KZT"
+            )
+
+        # 4. TRANSIT
+        # Получил деньги и примерно столько же отправил дальше
+        # seed специально не используем, т.к. у seed входящие данные неполные
+        elif (
+            not r["is_seed"]
+            and r["in_deg"] > 0
+            and r["out_deg"] > 0
+            and pd.notna(r["pass_through"])
+            and 0.8 <= r["pass_through"] <= 1.2
+        ):
+            role = "transit"
+
+            # Чем ближе pass_through к 1, тем увереннее
+            score = max(0.6, 1 - abs(r["pass_through"] - 1))
+
+            reason = (
+                f"Получил {r['in_kzt']:.0f} KZT, "
+                f"отправил {r['out_kzt']:.0f} KZT, "
+                f"pass={r['pass_through']:.2f}"
+            )
+
+        # 5. TERMINAL
+        # Нет исходящих, но НЕ на глубине 4
+        elif (
+            r["out_deg"] == 0
+            and r["in_deg"] > 0
+            and not r["truncated_by_depth"]
+        ):
+            role = "terminal"
+            score = 0.80
+            reason = (
+                f"Получил {r['in_kzt']:.0f} KZT, "
+                f"исходящих связей=0, depth={r['depth']}"
+            )
+
+        # 6. PERIPHERAL
+        else:
+            role = "peripheral"
+            score = 0.50
+
+            if r["truncated_by_depth"]:
+                reason = (
+                    f"Узел depth=4, исходящих=0; "
+                    f"конец графа, terminal не подтвержден"
+                )
+            else:
+                reason = (
+                    f"Входов={r['in_deg']}, выходов={r['out_deg']}, "
+                    f"PageRank={r['pagerank']:.6f}"
+                )
+
+        roles.append(role)
+        scores.append(round(float(score), 3))
+        evidence.append(reason[:200])
+
+    df["role"] = roles
+    df["role_score"] = scores
+    df["evidence"] = evidence
+
+    return df
+
+def calculate_priority(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    # Нормализуем показатели в диапазон 0..1
+    df["pr_norm"] = df["pagerank"] / max(df["pagerank"].max(), 1e-9)
+
+    df["in_deg_norm"] = (
+        df["in_deg"] / max(df["in_deg"].max(), 1)
+    )
+
+    df["out_deg_norm"] = (
+        df["out_deg"] / max(df["out_deg"].max(), 1)
+    )
+
+    total_money = df["in_kzt"] + df["out_kzt"]
+
+    df["money_norm"] = (
+        total_money / max(total_money.max(), 1)
+    )
+
+    # Базовый score
+    df["priority_score"] = (
+        0.35 * df["pr_norm"] +
+        0.25 * df["in_deg_norm"] +
+        0.20 * df["out_deg_norm"] +
+        0.20 * df["money_norm"]
+    )
+
+    # Бонус за важную роль
+    role_bonus = {
+        "coordinator": 0.15,
+        "consolidator": 0.10,
+        "distributor": 0.08,
+        "transit": 0.05,
+        "terminal": 0.02,
+        "peripheral": 0.00
+    }
+
+    df["priority_score"] += df["role"].map(role_bonus).fillna(0)
+
+    # Ограничиваем 0..1
+    df["priority_score"] = df["priority_score"].clip(0, 1)
+
+    df["priority_score"] = df["priority_score"].round(3)
+
+    return df
 # ---------------------------------------------------------------- выгрузки
 
 def write_outputs(df: pd.DataFrame, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. nodes_roles.csv — схема из ТЗ, роли не заполнены
-    roles = df[["gid"]].copy()
-    roles["role"] = ""            # TODO: одна из ROLES
-    roles["role_score"] = 0.0     # TODO: 0..1
-    roles["cluster_id"] = -1      # TODO: номер кластера
-    roles["priority_score"] = 0.0 # TODO: 0..1
-    roles["evidence"] = ""        # TODO: почему — с числами, до 200 символов
-    roles = roles.merge(
-        df[["gid", "in_deg", "out_deg", "in_kzt", "out_kzt", "pagerank",
-            "pass_through", "depth", "is_seed", "truncated_by_depth"]],
-        on="gid", how="left")
+    # 1. nodes_roles.csv
+    roles = df[
+        [
+            "gid",
+            "role",
+            "role_score",
+            "evidence",
+            "in_deg",
+            "out_deg",
+            "in_kzt",
+            "out_kzt",
+            "pagerank",
+            "pass_through",
+            "depth",
+            "is_seed",
+            "truncated_by_depth"
+        ]
+    ].copy()
+
+    # Пока кластеризацию еще не сделали
+
+    # Пока priority_score тоже сделаем позже
+    #roles["priority_score"] = 0.0
+
+    # Ставим обязательные колонки вперед
+    roles = df[
+        [
+            "gid",
+            "role",
+            "role_score",
+            "priority_score",
+            "evidence",
+            "in_deg",
+            "out_deg",
+            "in_kzt",
+            "out_kzt",
+            "pagerank",
+            "pass_through",
+            "depth",
+            "is_seed",
+            "truncated_by_depth"
+        ]
+    ].copy()
+
+    roles["cluster_id"] = -1
+
     roles.to_csv(out_dir / "nodes_roles.csv", index=False)
 
-    # 2. clusters.csv — пустой каркас
-    pd.DataFrame(columns=["cluster_id", "n_nodes", "n_seed",
-                          "sum_kzt_internal", "top_gids", "hypothesis"]) \
-        .to_csv(out_dir / "clusters.csv", index=False)
+    # 2. clusters.csv — пока пустой
+    pd.DataFrame(
+        columns=[
+            "cluster_id",
+            "n_nodes",
+            "n_seed",
+            "sum_kzt_internal",
+            "top_gids",
+            "hypothesis"
+        ]
+    ).to_csv(out_dir / "clusters.csv", index=False)
 
-    # 3. top_nodes.csv — пустой каркас, нужно ≥20 строк
-    pd.DataFrame(columns=["rank", "gid", "role", "priority_score", "why"]) \
-        .to_csv(out_dir / "top_nodes.csv", index=False)
+    # 3. top_nodes.csv — пока пустой
+    pd.DataFrame(
+        columns=[
+            "rank",
+            "gid",
+            "role",
+            "priority_score",
+            "why"
+        ]
+    ).to_csv(out_dir / "top_nodes.csv", index=False)
 
-    print(f"Выгрузки записаны в {out_dir}/  (роли пока пустые — это ваша задача)")
+    print(f"Выгрузки записаны в {out_dir}/")
 
 
 # ---------------------------------------------------------------- подсказки
@@ -166,9 +369,15 @@ def main():
 
     edges, nodes, tx = load(Path(a.data))
     sanity_check(edges, nodes, tx)
+
     G = build_graph(edges)
+
     df = basic_features(G, nodes)
+    df = assign_roles(df)
+    df = calculate_priority(df)
+
     write_outputs(df, Path(a.out))
+
     hints(G, df)
 
 
