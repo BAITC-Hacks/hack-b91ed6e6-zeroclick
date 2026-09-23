@@ -20,7 +20,15 @@ HackAlem AI — кейс «Граф денег».
 """
 
 import argparse
+import sys
 from pathlib import Path
+
+# Windows PowerShell/cmd can default to cp1251.
+# Force UTF-8 so Russian text and symbols do not crash console output.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import numpy as np
 import pandas as pd
@@ -69,7 +77,7 @@ def sanity_check(edges, nodes, tx):
     orphans = set(nodes.gid) - in_edges
     print(f"\n  ВНИМАНИЕ: {len(orphans)} узлов нет ни в одном ребре "
           f"(из них seed: {len(orphans & set(nodes[nodes.is_seed].gid))})")
-    print("  → они всё равно должны попасть в nodes_roles.csv")
+    print("  -> они всё равно должны попасть в nodes_roles.csv")
     print("=" * 64, "\n")
     return orphans
 
@@ -273,9 +281,14 @@ def calculate_priority(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------- выгрузки
 
 def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
+    """
+    Пишет РОВНО три обязательных CSV фиксированной схемы из ТЗ.
+    Расширенные метрики сохраняются отдельно в runtime/ для интерфейса
+    и не смешиваются с конкурсными выгрузками.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. nodes_roles.csv
+    # 1) nodes_roles.csv — фиксированная схема ТЗ
     roles = df[
         [
             "gid",
@@ -284,53 +297,61 @@ def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
             "cluster_id",
             "priority_score",
             "evidence",
-            "in_deg",
-            "out_deg",
-            "in_kzt",
-            "out_kzt",
-            "pagerank",
-            "pass_through",
-            "depth",
-            "is_seed",
-            "truncated_by_depth"
         ]
     ].copy()
-
     roles.to_csv(out_dir / "nodes_roles.csv", index=False)
 
-    # 2. clusters.csv — норм
-    clusters_df.to_csv(out_dir / "clusters.csv", index=False)
+    # 2) clusters.csv — фиксированная схема ТЗ
+    cluster_cols = [
+        "cluster_id",
+        "n_nodes",
+        "n_seed",
+        "sum_kzt_internal",
+        "top_gids",
+        "hypothesis",
+    ]
+    clusters_df[cluster_cols].to_csv(out_dir / "clusters.csv", index=False)
 
-    # 3. top_nodes.csv — норм
+    # 3) top_nodes.csv — минимум 20 строк, фиксированная схема ТЗ
     top = df.sort_values(
         by="priority_score",
-        ascending=False
+        ascending=False,
     ).head(20).copy()
 
     top["rank"] = range(1, len(top) + 1)
     top["why"] = top.apply(
         lambda r: (
             f"priority={float(r['priority_score']):.3f}; "
-            f"role={r['role']}; "
-            f"in={int(r['in_deg'])}; out={int(r['out_deg'])}; "
-            f"PageRank={float(r['pagerank']):.6f}. "
-            f"{r['evidence']}"
-        )[:200],
+            f"role={r['role']}; in={int(r['in_deg'])}; out={int(r['out_deg'])}; "
+            f"PageRank={float(r['pagerank']):.6f}; {r['evidence']}"
+        )[:220],
         axis=1,
     )
 
     top = top[
-        [
-            "rank",
-            "gid",
-            "role",
-            "priority_score",
-            "why"
-        ]
+        ["rank", "gid", "role", "priority_score", "why"]
     ]
-
     top.to_csv(out_dir / "top_nodes.csv", index=False)
-    
+
+    # Внутренний файл для интерфейса. Это НЕ конкурсная CSV-выгрузка.
+    runtime_dir = Path(__file__).resolve().parent / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    metric_cols = [
+        "gid",
+        "in_deg",
+        "out_deg",
+        "in_kzt",
+        "out_kzt",
+        "in_tx",
+        "out_tx",
+        "pagerank",
+        "pass_through",
+        "depth",
+        "is_seed",
+        "truncated_by_depth",
+    ]
+    df[metric_cols].to_parquet(runtime_dir / "nodes_metrics.parquet", index=False)
+
     print(f"Выгрузки записаны в {out_dir}/")
 
 

@@ -527,7 +527,102 @@ function bindEvents() {
   });
 }
 
+
+async function uploadOne(inputId, targetName) {
+  const input = $(inputId);
+  const file = input.files?.[0];
+  if (!file) return false;
+
+  const res = await fetch(`/api/upload?name=${encodeURIComponent(targetName)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file
+  });
+
+  const payload = await res.json();
+  if (!res.ok || !payload.ok) {
+    throw new Error(payload.error || `Не удалось загрузить ${targetName}`);
+  }
+  return true;
+}
+
+async function refreshPipelineStatus() {
+  const res = await fetch("/api/status", { cache: "no-store" });
+  const status = await res.json();
+
+  const readyCount = Object.values(status.files).filter(Boolean).length;
+  const badge = $("pipelineBadge");
+
+  if (status.has_results) {
+    badge.textContent = "Результаты готовы";
+    badge.className = "pipeline-badge ok";
+  } else if (status.ready) {
+    badge.textContent = "3/3 файла готовы";
+    badge.className = "pipeline-badge running";
+  } else {
+    badge.textContent = `${readyCount}/3 файла`;
+    badge.className = "pipeline-badge";
+  }
+
+  return status;
+}
+
+async function uploadAndAnalyze() {
+  const btn = $("uploadAnalyzeBtn");
+  const badge = $("pipelineBadge");
+  const msg = $("pipelineMessage");
+
+  btn.disabled = true;
+  badge.textContent = "Загрузка...";
+  badge.className = "pipeline-badge running";
+  msg.textContent = "";
+
+  try {
+    await uploadOne("edgesFile", "edges.parquet");
+    await uploadOne("nodesFile", "nodes.parquet");
+    await uploadOne("transactionsFile", "transactions.parquet");
+
+    const status = await refreshPipelineStatus();
+    if (!status.ready) {
+      throw new Error("Нужно загрузить edges.parquet, nodes.parquet и transactions.parquet.");
+    }
+
+    badge.textContent = "Считаем метрики...";
+    badge.className = "pipeline-badge running";
+
+    const res = await fetch("/api/analyze", { method: "POST" });
+    const payload = await res.json();
+
+    if (!res.ok || !payload.ok) {
+      const details = (payload.logs || [])
+        .map(x => `${x.command}\n${x.stderr || x.stdout || ""}`)
+        .join("\n\n");
+      throw new Error((payload.error || "Ошибка анализа") + "\n" + details);
+    }
+
+    badge.textContent = payload.under_5_minutes
+      ? `Готово за ${payload.seconds} сек`
+      : `Готово за ${payload.seconds} сек (>5 мин)`;
+    badge.className = payload.under_5_minutes
+      ? "pipeline-badge ok"
+      : "pipeline-badge error";
+
+    msg.textContent = "CSV созданы и проверены. Обновляю граф...";
+    setTimeout(() => window.location.reload(), 500);
+  } catch (err) {
+    badge.textContent = "Ошибка";
+    badge.className = "pipeline-badge error";
+    msg.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function init() {
+  $("uploadAnalyzeBtn").addEventListener("click", uploadAndAnalyze);
+
+  const status = await refreshPipelineStatus();
+
   try {
     const res = await fetch("graph_data.json", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -549,14 +644,13 @@ async function init() {
     chooseVisibleGraph();
     resizeCanvas();
   } catch (err) {
-    document.body.innerHTML = `
-      <div style="padding:40px;font-family:system-ui">
-        <h2>Не удалось загрузить сайт</h2>
-        <p>${escapeHtml(err.message)}</p>
-        <p>Запусти <code>py run.py</code> из корня проекта.</p>
-      </div>
-    `;
+    $("pipelineMessage").textContent =
+      status.ready
+        ? "Данные загружены. Нажми «Загрузить и пересчитать», чтобы построить результаты."
+        : "Загрузи три parquet-файла, чтобы построить граф.";
+
+    $("metrics").innerHTML = "";
+    $("graphStatus").textContent = "Нет рассчитанных данных";
   }
 }
-
 init();

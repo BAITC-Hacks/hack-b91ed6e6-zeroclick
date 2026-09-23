@@ -19,6 +19,35 @@
   </header>
 
   <main class="page">
+    <section class="upload-card card">
+      <div class="upload-head">
+        <div>
+          <div class="eyebrow">Шаг 1</div>
+          <h2>Загрузка входных данных</h2>
+          <p>Выбери три parquet-файла из выгрузки. После загрузки нажми «Пересчитать».</p>
+        </div>
+        <div id="pipelineBadge" class="pipeline-badge">Ожидание данных</div>
+      </div>
+
+      <div class="upload-grid">
+        <label class="upload-field">
+          <span>edges.parquet</span>
+          <input id="edgesFile" type="file" accept=".parquet">
+        </label>
+        <label class="upload-field">
+          <span>nodes.parquet</span>
+          <input id="nodesFile" type="file" accept=".parquet">
+        </label>
+        <label class="upload-field">
+          <span>transactions.parquet</span>
+          <input id="transactionsFile" type="file" accept=".parquet">
+        </label>
+        <button id="uploadAnalyzeBtn" class="btn upload-button">Загрузить и пересчитать</button>
+      </div>
+
+      <div id="pipelineMessage" class="pipeline-message"></div>
+    </section>
+
     <section class="metrics" id="metrics"></section>
 
     <nav class="tabs" aria-label="Разделы">

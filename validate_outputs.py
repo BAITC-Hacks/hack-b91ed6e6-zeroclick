@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from pathlib import Path
 
 import pandas as pd
@@ -33,9 +39,15 @@ def main():
     ]
     required_top = ["rank", "gid", "role", "priority_score", "why"]
 
-    assert all(c in roles.columns for c in required_roles), "nodes_roles.csv: не хватает обязательных колонок"
-    assert all(c in clusters.columns for c in required_clusters), "clusters.csv: не хватает обязательных колонок"
-    assert all(c in top.columns for c in required_top), "top_nodes.csv: не хватает обязательных колонок"
+    assert list(roles.columns) == required_roles, (
+        f"nodes_roles.csv: схема должна быть ровно {required_roles}, получено {list(roles.columns)}"
+    )
+    assert list(clusters.columns) == required_clusters, (
+        f"clusters.csv: схема должна быть ровно {required_clusters}, получено {list(clusters.columns)}"
+    )
+    assert list(top.columns) == required_top, (
+        f"top_nodes.csv: схема должна быть ровно {required_top}, получено {list(top.columns)}"
+    )
 
     assert len(roles) == len(nodes), f"nodes_roles.csv: ожидалось {len(nodes)} строк, получено {len(roles)}"
     assert set(roles["gid"]) == set(nodes["gid"]), "nodes_roles.csv: набор gid не совпадает с nodes.parquet"
@@ -56,12 +68,15 @@ def main():
     assert top["priority_score"].is_monotonic_decreasing, "top_nodes.csv не отсортирован по priority_score"
     assert top["why"].astype(str).str.strip().ne("").all(), "top_nodes.csv: why пустой"
 
-    # Ловушка depth=4: не должно быть автоматических terminal на обрыве графа.
-    if {"depth", "out_deg"}.issubset(roles.columns):
-        bad = roles[
-            (roles["depth"] == 4)
-            & (roles["out_deg"] == 0)
-            & (roles["role"] == "terminal")
+    # Ловушка depth=4 проверяется через внутренние метрики.
+    metrics_path = ROOT / "runtime" / "nodes_metrics.parquet"
+    if metrics_path.exists():
+        metrics = pd.read_parquet(metrics_path)[["gid", "depth", "out_deg"]]
+        check = roles.merge(metrics, on="gid", how="left")
+        bad = check[
+            (check["depth"] == 4)
+            & (check["out_deg"] == 0)
+            & (check["role"] == "terminal")
         ]
         assert bad.empty, "depth=4 с out_deg=0 ошибочно помечен terminal"
 

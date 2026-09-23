@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import sys
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import json
 import math
 from pathlib import Path
@@ -10,6 +17,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 OUT = ROOT / "out"
+RUNTIME = ROOT / "runtime"
 WEB_DATA = ROOT / "web" / "graph_data.json"
 
 
@@ -24,38 +32,37 @@ def clean_value(value):
 
 
 def records(df: pd.DataFrame) -> list[dict]:
-    result = []
-    for row in df.to_dict(orient="records"):
-        result.append({k: clean_value(v) for k, v in row.items()})
-    return result
+    return [
+        {k: clean_value(v) for k, v in row.items()}
+        for row in df.to_dict(orient="records")
+    ]
 
 
 def main():
-    edges_path = DATA / "edges.parquet"
-    roles_path = OUT / "nodes_roles.csv"
-    top_path = OUT / "top_nodes.csv"
-    clusters_path = OUT / "clusters.csv"
-
-    required = [edges_path, roles_path, top_path, clusters_path]
+    required = [
+        DATA / "edges.parquet",
+        OUT / "nodes_roles.csv",
+        OUT / "top_nodes.csv",
+        OUT / "clusters.csv",
+        RUNTIME / "nodes_metrics.parquet",
+    ]
     missing = [p for p in required if not p.exists()]
     if missing:
-        names = "\n".join(str(p) for p in missing)
         raise FileNotFoundError(
-            "Не хватает файлов для сайта. Сначала запусти starter.py:\n" + names
+            "Не хватает файлов для интерфейса:\n"
+            + "\n".join(str(p) for p in missing)
         )
 
-    edges = pd.read_parquet(edges_path)[["src", "dst", "sum_kzt", "n_tx", "depth"]].copy()
-    roles = pd.read_csv(roles_path)
-    top = pd.read_csv(top_path)
-    clusters = pd.read_csv(clusters_path)
+    edges = pd.read_parquet(DATA / "edges.parquet")[
+        ["src", "dst", "sum_kzt", "n_tx", "depth"]
+    ].copy()
 
-    # Оставляем только то, что реально нужно интерфейсу.
-    role_cols = [
-        "gid", "role", "role_score", "cluster_id", "priority_score", "evidence",
-        "in_deg", "out_deg", "in_kzt", "out_kzt", "pagerank", "pass_through",
-        "depth", "is_seed", "truncated_by_depth"
-    ]
-    roles = roles[[c for c in role_cols if c in roles.columns]].copy()
+    roles = pd.read_csv(OUT / "nodes_roles.csv")
+    metrics = pd.read_parquet(RUNTIME / "nodes_metrics.parquet")
+    roles = roles.merge(metrics, on="gid", how="left", validate="one_to_one")
+
+    top = pd.read_csv(OUT / "top_nodes.csv")
+    clusters = pd.read_csv(OUT / "clusters.csv")
 
     payload = {
         "meta": {
@@ -75,6 +82,7 @@ def main():
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
+
     print(f"Web data: {WEB_DATA}")
     print(
         f"{payload['meta']['n_nodes']} узлов, "
