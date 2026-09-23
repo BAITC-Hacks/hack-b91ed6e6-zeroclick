@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-Стартовый код кейса «Граф денег» — HackAlem AI.
+HackAlem AI — кейс «Граф денег».
 
-Что он делает:
-  1. грузит три parquet-файла и проверяет их консистентность;
-  2. собирает направленный взвешенный граф;
-  3. считает БАЗОВЫЕ метрики узлов (степени, обороты, PageRank);
-  4. пишет три выгрузки в требуемой ТЗ схеме — с ПУСТЫМИ ролями.
+Пайплайн:
+  1. загружает и проверяет три parquet-файла;
+  2. строит направленный взвешенный граф;
+  3. считает базовые метрики узлов;
+  4. присваивает объяснимые роли и role_score;
+  5. считает priority_score;
+  6. выполняет Louvain-кластеризацию;
+  7. создаёт nodes_roles.csv, clusters.csv и top_nodes.csv.
 
-Чего он НЕ делает — это ваша работа:
-  * не присваивает роли, * Сделано
-  * не кластеризует,
-  * не ранжирует узлы,
-  * не рисует граф.
+По умолчанию:
+    data/ — входные parquet
+    out/  — итоговые CSV
 
 Запуск:
-    python starter.py --data ../data --out ./out
+    py starter.py
 """
 
 import argparse
@@ -53,9 +54,14 @@ def sanity_check(edges, nodes, tx):
     print(f"  период                : {tx.date.min().date()} — {tx.date.max().date()}")
 
     # транзакции должны складываться в рёбра
-    agg = tx.groupby(["src", "dst"]).agg(s=("sum_kzt", "sum"), c=("sum_kzt", "size")).reset_index()
+    agg = tx.groupby(["src", "dst"]).agg(
+        s=("sum_kzt", "sum"),
+        c=("sum_kzt", "size"),
+    ).reset_index()
     m = edges.merge(agg, on=["src", "dst"], how="outer", indicator=True)
     assert (m._merge == "both").all(), "edges и transactions не сходятся по парам"
+    assert np.allclose(m["sum_kzt"], m["s"]), "edges.sum_kzt != сумма transactions"
+    assert (m["n_tx"].astype(int) == m["c"].astype(int)).all(), "edges.n_tx != число transactions"
     print("  edges == transactions : OK")
 
     # узлы без единого ребра
@@ -129,8 +135,8 @@ def assign_roles(df: pd.DataFrame) -> pd.DataFrame:
             role = "coordinator"
             score = 0.95
             reason = (
-                f"Высокий PageRank={r['pagerank']:.6f}, "
-                f"входов={r['in_deg']}, выходов={r['out_deg']}"
+                f"PageRank={r['pagerank']:.6f} >= q95={pagerank_high:.6f}; "
+                f"in={r['in_deg']}, out={r['out_deg']}"
             )
 
         # 2. DISTRIBUTOR
@@ -139,8 +145,8 @@ def assign_roles(df: pd.DataFrame) -> pd.DataFrame:
             role = "distributor"
             score = min(1.0, 0.7 + r["out_deg"] / max(out_deg_high, 1) * 0.1)
             reason = (
-                f"Отправляет {r['out_deg']} получателям, "
-                f"исходящая сумма={r['out_kzt']:.0f} KZT"
+                f"out_deg={r['out_deg']} >= {out_deg_high:.0f}; "
+                f"out_kzt={r['out_kzt']:.0f} KZT"
             )
 
         # 3. CONSOLIDATOR
@@ -149,8 +155,8 @@ def assign_roles(df: pd.DataFrame) -> pd.DataFrame:
             role = "consolidator"
             score = min(1.0, 0.7 + r["in_deg"] / max(in_deg_high, 1) * 0.1)
             reason = (
-                f"Получает от {r['in_deg']} плательщиков, "
-                f"входящая сумма={r['in_kzt']:.0f} KZT"
+                f"in_deg={r['in_deg']} >= {in_deg_high:.0f}; "
+                f"in_kzt={r['in_kzt']:.0f} KZT"
             )
 
         # 4. TRANSIT
@@ -289,12 +295,6 @@ def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
             "truncated_by_depth"
         ]
     ].copy()
-
-    # Пока кластеризацию еще не сделали
-
-    # Пока priority_score тоже сделаем позже
-    #roles["priority_score"] = 0.0
-
 
     roles.to_csv(out_dir / "nodes_roles.csv", index=False)
 

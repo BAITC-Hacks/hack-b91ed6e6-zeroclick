@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620">
+<style>
+  .bg{fill:#f4f7fb}.box{fill:white;stroke:#cbd5e1;stroke-width:2}.t{font-family:Arial,sans-serif;fill:#0f172a}
+  .h{font-size:27px;font-weight:700}.p{font-size:18px}.small{font-size:16px;fill:#475569}
+  .arrow{stroke:#2563eb;stroke-width:4;fill:none;marker-end:url(#a)}
+</style>
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#2563eb"/></marker></defs>
+<rect class="bg" width="1600" height="620"/>
+<text class="t h" x="60" y="60">HackAlem AI — схема решения «Граф денег»</text>
+
+<rect class="box" x="60" y="150" rx="18" width="240" height="190"/>
+<text class="t h" x="90" y="195">Данные</text>
+<text class="t p" x="90" y="235">edges.parquet</text>
+<text class="t p" x="90" y="265">nodes.parquet</text>
+<text class="t p" x="90" y="295">transactions.parquet</text>
+
+<path class="arrow" d="M300 245 H385"/>
+
+<rect class="box" x="390" y="120" rx="18" width="280" height="250"/>
+<text class="t h" x="420" y="165">Метрики</text>
+<text class="t p" x="420" y="205">in/out degree</text>
+<text class="t p" x="420" y="235">in/out KZT</text>
+<text class="t p" x="420" y="265">PageRank</text>
+<text class="t p" x="420" y="295">pass_through</text>
+<text class="t p" x="420" y="325">depth / seed</text>
+
+<path class="arrow" d="M670 245 H755"/>
+
+<rect class="box" x="760" y="95" rx="18" width="300" height="300"/>
+<text class="t h" x="790" y="140">Аналитика</text>
+<text class="t p" x="790" y="185">6 объяснимых ролей</text>
+<text class="t p" x="790" y="220">role_score</text>
+<text class="t p" x="790" y="255">priority_score</text>
+<text class="t p" x="790" y="290">Louvain clusters</text>
+<text class="t p" x="790" y="325">evidence / why</text>
+<text class="t small" x="790" y="360">гипотезы для проверки</text>
+
+<path class="arrow" d="M1060 190 H1145"/>
+<path class="arrow" d="M1060 300 H1145"/>
+
+<rect class="box" x="1150" y="85" rx="18" width="380" height="205"/>
+<text class="t h" x="1180" y="130">Выгрузки</text>
+<text class="t p" x="1180" y="175">nodes_roles.csv</text>
+<text class="t p" x="1180" y="210">clusters.csv</text>
+<text class="t p" x="1180" y="245">top_nodes.csv</text>
+
+<rect class="box" x="1150" y="335" rx="18" width="380" height="205"/>
+<text class="t h" x="1180" y="380">HTML интерфейс</text>
+<text class="t p" x="1180" y="425">поиск GID + связи</text>
+<text class="t p" x="1180" y="460">роли / кластеры / стрелки</text>
+<text class="t p" x="1180" y="495">TOP-20 + карточка узла</text>
+
+<text class="t small" x="60" y="570">Один запуск: py run.py → расчёт → валидация → интерфейс</text>
+</svg>

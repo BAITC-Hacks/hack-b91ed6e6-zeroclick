@@ -39,6 +39,7 @@ def main():
     if not args.skip_analysis:
         run_cmd([sys.executable, "starter.py"])
 
+    run_cmd([sys.executable, "validate_outputs.py"])
     run_cmd([sys.executable, "build_web_data.py"])
 
     os.chdir(WEB)
