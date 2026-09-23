@@ -24,14 +24,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import networkx as nx
-import argparse
-from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import networkx as nx
-
-from clustering import assign_cluster_ids, build_clusters_output, save_clusters_csv, validate_clusters
+from clustering import assign_cluster_ids, build_clusters_output, validate_clusters
 
 ROLES = ["consolidator", "transit", "distributor", "terminal", "coordinator", "peripheral"]
 
@@ -314,7 +308,16 @@ def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
     ).head(20).copy()
 
     top["rank"] = range(1, len(top) + 1)
-    top["why"] = top["evidence"]
+    top["why"] = top.apply(
+        lambda r: (
+            f"priority={float(r['priority_score']):.3f}; "
+            f"role={r['role']}; "
+            f"in={int(r['in_deg'])}; out={int(r['out_deg'])}; "
+            f"PageRank={float(r['pagerank']):.6f}. "
+            f"{r['evidence']}"
+        )[:200],
+        axis=1,
+    )
 
     top = top[
         [

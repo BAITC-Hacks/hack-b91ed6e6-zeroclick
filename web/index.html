@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Граф денег — HackAlem AI</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">HackAlem AI · AML analytics</div>
+      <h1>Граф денег</h1>
+      <p>Роли узлов, приоритеты, кластеры и направление движения средств.</p>
+    </div>
+    <div class="header-actions">
+      <button id="resetViewBtn" class="btn secondary">Сбросить вид</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="metrics" id="metrics"></section>
+
+    <nav class="tabs" aria-label="Разделы">
+      <button class="tab active" data-tab="graph">Граф сети</button>
+      <button class="tab" data-tab="top">TOP узлов</button>
+      <button class="tab" data-tab="clusters">Кластеры</button>
+    </nav>
+
+    <section id="tab-graph" class="tab-panel active">
+      <div class="workspace">
+        <aside class="sidebar card">
+          <h2>Фильтры</h2>
+
+          <label class="field">
+            <span>Поиск по GID</span>
+            <div class="search-row">
+              <input id="gidInput" type="text" inputmode="numeric" placeholder="например 123456">
+              <button id="searchBtn" class="btn">Найти</button>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>Роль</span>
+            <select id="roleFilter"></select>
+          </label>
+
+          <label class="field">
+            <span>Кластер</span>
+            <select id="clusterFilter"></select>
+          </label>
+
+          <label class="field">
+            <span>Режим цвета</span>
+            <select id="colorMode">
+              <option value="role">По роли</option>
+              <option value="cluster">По кластеру</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Максимум узлов: <b id="maxNodesValue">120</b></span>
+            <input id="maxNodes" type="range" min="20" max="250" step="10" value="120">
+          </label>
+
+          <div id="nodeCard" class="node-card empty">
+            Выбери узел на графе или введи GID.
+          </div>
+        </aside>
+
+        <section class="graph-card card">
+          <div class="graph-toolbar">
+            <div>
+              <h2>Сеть переводов</h2>
+              <p id="graphStatus">Загрузка...</p>
+            </div>
+            <div class="toolbar-help">Колесо — масштаб · мышь — перемещение · клик — выбрать узел</div>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="graphCanvas"></canvas>
+            <div id="tooltip" class="tooltip hidden"></div>
+          </div>
+
+          <div id="legend" class="legend"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-top" class="tab-panel">
+      <div class="card section-card">
+        <div class="section-head">
+          <div>
+            <h2>TOP-20 приоритетных узлов</h2>
+            <p>Чем выше priority_score, тем раньше узел стоит проверить.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>GID</th>
+                <th>Role</th>
+                <th>Priority</th>
+                <th>Почему</th>
+              </tr>
+            </thead>
+            <tbody id="topTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-clusters" class="tab-panel">
+      <div class="cluster-layout">
+        <div class="card section-card">
+          <h2>Кластеры сети</h2>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Узлов</th>
+                  <th>Seed</th>
+                  <th>Внутренний оборот</th>
+                  <th>Top GID</th>
+                  <th>Гипотеза</th>
+                </tr>
+              </thead>
+              <tbody id="clustersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="card cluster-detail">
+          <h2>Просмотр кластера</h2>
+          <label class="field">
+            <span>Cluster ID</span>
+            <select id="clusterDetailSelect"></select>
+          </label>
+          <div id="clusterSummary"></div>
+          <div id="clusterNodes"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
