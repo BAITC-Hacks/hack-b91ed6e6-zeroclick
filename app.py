@@ -43,7 +43,7 @@ edges["src"] = edges["src"].astype(int)
 edges["dst"] = edges["dst"].astype(int)
 
 role_colors = {
-    "coordinator": "#d62728",
+    "coordinator": "#950606",
     "consolidator": "#ff7f0e",
     "distributor": "#2ca02c",
     "transit": "#1f77b4",
