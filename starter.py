@@ -24,6 +24,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import networkx as nx
+import argparse
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import networkx as nx
+
+from clustering import assign_cluster_ids, build_clusters_output, save_clusters_csv, validate_clusters
 
 ROLES = ["consolidator", "transit", "distributor", "terminal", "coordinator", "peripheral"]
 
@@ -259,78 +267,9 @@ def calculate_priority(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def assign_clusters(G: nx.DiGraph, df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
 
-    UG = G.to_undirected()
 
-    communities = nx.community.louvain_communities(
-        UG,
-        weight="sum_kzt",
-        seed=42
-    )
 
-    cluster_map = {}
-
-    for cluster_id, community in enumerate(communities):
-        for gid in community:
-            cluster_map[gid] = cluster_id
-
-    next_cluster = len(communities)
-
-    for gid in df["gid"]:
-        if gid not in cluster_map:
-            cluster_map[gid] = next_cluster
-            next_cluster += 1
-
-    df["cluster_id"] = df["gid"].map(cluster_map).astype(int)
-
-    return df
-
-def build_clusters_csv(G: nx.DiGraph, df: pd.DataFrame) -> pd.DataFrame:
-    rows = []
-
-    for cluster_id, group in df.groupby("cluster_id"):
-        gids = set(group["gid"])
-
-        # сколько узлов
-        n_nodes = len(group)
-
-        # сколько seed
-        n_seed = int(group["is_seed"].sum())
-
-        # внутренний оборот
-        sum_kzt_internal = 0.0
-
-        for u, v, data in G.edges(data=True):
-            if u in gids and v in gids:
-                sum_kzt_internal += data.get("sum_kzt", 0.0)
-
-        # топ-5 узлов по priority_score
-        top_gids = (
-            group.sort_values("priority_score", ascending=False)
-            .head(5)["gid"]
-            .astype(str)
-            .tolist()
-        )
-
-        # простая гипотеза
-        role_counts = group["role"].value_counts()
-
-        main_role = role_counts.index[0] if len(role_counts) > 0 else "unknown"
-
-        hypothesis = f"Кластер с преобладающей ролью {main_role}"
-
-        rows.append({
-            "cluster_id": cluster_id,
-            "n_nodes": n_nodes,
-            "n_seed": n_seed,
-            "sum_kzt_internal": round(sum_kzt_internal, 2),
-            "top_gids": ",".join(top_gids),
-            "hypothesis": hypothesis
-        })
-
-    return pd.DataFrame(rows)
 # ---------------------------------------------------------------- выгрузки
 
 def write_outputs(df: pd.DataFrame, clusters_df: pd.DataFrame, out_dir: Path):
@@ -430,10 +369,11 @@ def main():
     df = basic_features(G, nodes)
     df = assign_roles(df)
     df = calculate_priority(df)
-    df = assign_clusters(G, df)
+    df = assign_cluster_ids(df, G)
 
-    clusters_df = build_clusters_csv(G, df)
-    
+    clusters_df = build_clusters_output(df, G)
+    validate_clusters(df, nodes, clusters_df)
+
     write_outputs(df, clusters_df, Path(a.out))
 
     hints(G, df)
