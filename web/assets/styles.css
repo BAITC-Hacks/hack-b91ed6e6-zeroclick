@@ -258,3 +258,69 @@ input[type=range]{width:100%;accent-color:var(--primary)}
   .upload-head{display:block}
   .pipeline-badge{display:inline-block;margin-top:10px}
 }
+
+.file-card {
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 16px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 42px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 25px rgba(15, 23, 42, 0.05);
+}
+
+.file-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: #eff6ff;
+    color: #2563eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.file-info strong {
+    color: #0f172a;
+    font-size: 14px;
+}
+
+.file-info span {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.file-button {
+    background: #2563eb;
+    color: white;
+    border-radius: 10px;
+    padding: 9px 13px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.file-button:hover {
+    background: #1d4ed8;
+}
+
+.file-name {
+    grid-column: 2 / 4;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.file-name.selected {
+    color: #16a34a;
+    font-weight: 700;
+}

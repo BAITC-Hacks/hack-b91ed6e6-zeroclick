@@ -32,15 +32,78 @@
       <div class="upload-grid">
         <label class="upload-field">
           <span>edges.parquet</span>
-          <input id="edgesFile" type="file" accept=".parquet">
+          <div class="file-card">
+            <div class="file-icon">↔</div>
+
+            <div class="file-info">
+                <strong>edges.parquet</strong>
+                <span>Связи и суммы переводов</span>
+            </div>
+
+            <label class="file-button">
+                Выбрать
+                <input
+                    id="edgesFile"
+                    type="file"
+                    accept=".parquet"
+                    hidden
+                >
+            </label>
+
+            <div id="edgesFileName" class="file-name">
+                Файл не выбран
+            </div>
+        </div>
         </label>
         <label class="upload-field">
           <span>nodes.parquet</span>
-          <input id="nodesFile" type="file" accept=".parquet">
+          <div class="file-card">
+              <div class="file-icon">●</div>
+
+              <div class="file-info">
+                  <strong>nodes.parquet</strong>
+                  <span>Все клиенты графа</span>
+              </div>
+
+              <label class="file-button">
+                  Выбрать
+                  <input
+                      id="nodesFile"
+                      type="file"
+                      accept=".parquet"
+                      hidden
+                  >
+              </label>
+
+              <div id="nodesFileName" class="file-name">
+                  Файл не выбран
+              </div>
+          </div>
         </label>
         <label class="upload-field">
           <span>transactions.parquet</span>
-          <input id="transactionsFile" type="file" accept=".parquet">
+          <div class="file-card">
+              <div class="file-icon">₸</div>
+
+              <div class="file-info">
+                  <strong>transactions.parquet</strong>
+                  <span>Отдельные транзакции</span>
+              </div>
+
+              <label class="file-button">
+                  Выбрать
+                  <input
+                      id="transactionsFile"
+                      type="file"
+                      accept=".parquet"
+                      hidden
+                  >
+              </label>
+
+              <div id="transactionsFileName" class="file-name">
+                  Файл не выбран
+              </div>
+          </div>
         </label>
         <button id="uploadAnalyzeBtn" class="btn upload-button">Загрузить и пересчитать</button>
       </div>

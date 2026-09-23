@@ -45,7 +45,38 @@ def load(data_dir: Path):
     edges = pd.read_parquet(data_dir / "edges.parquet")
     nodes = pd.read_parquet(data_dir / "nodes.parquet")
     tx = pd.read_parquet(data_dir / "transactions.parquet")
+
+    required_edges = {"src", "dst", "sum_kzt", "n_tx", "depth"}
+    required_nodes = {"gid", "depth", "is_seed"}
+    required_tx = {"src", "dst", "date", "sum_kzt"}
+
+    missing_edges = required_edges - set(edges.columns)
+    missing_nodes = required_nodes - set(nodes.columns)
+    missing_tx = required_tx - set(tx.columns)
+
+    if missing_edges:
+        raise ValueError(
+            f"Неверный edges.parquet. "
+            f"Не хватает колонок: {sorted(missing_edges)}. "
+            f"Найдены: {edges.columns.tolist()}"
+        )
+
+    if missing_nodes:
+        raise ValueError(
+            f"Неверный nodes.parquet. "
+            f"Не хватает колонок: {sorted(missing_nodes)}. "
+            f"Найдены: {nodes.columns.tolist()}"
+        )
+
+    if missing_tx:
+        raise ValueError(
+            f"Неверный transactions.parquet. "
+            f"Не хватает колонок: {sorted(missing_tx)}. "
+            f"Найдены: {tx.columns.tolist()}"
+        )
+
     tx["date"] = pd.to_datetime(tx["date"])
+
     return edges, nodes, tx
 
 

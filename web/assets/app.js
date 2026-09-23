@@ -692,4 +692,24 @@ async function init() {
     $("graphStatus").textContent = "Нет рассчитанных данных";
   }
 }
+function bindFileName(inputId, labelId) {
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+
+    input.addEventListener("change", () => {
+        const file = input.files?.[0];
+
+        if (file) {
+            label.textContent = file.name;
+            label.classList.add("selected");
+        } else {
+            label.textContent = "Файл не выбран";
+            label.classList.remove("selected");
+        }
+    });
+}
+
+bindFileName("edgesFile", "edgesFileName");
+bindFileName("nodesFile", "nodesFileName");
+bindFileName("transactionsFile", "transactionsFileName");
 init();
