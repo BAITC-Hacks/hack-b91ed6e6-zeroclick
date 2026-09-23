@@ -618,6 +618,42 @@ async function uploadAndAnalyze() {
   }
 }
 
+async function loadCsvPreview() {
+    const name = $("csvSelect").value;
+
+    $("csvInfo").textContent = "Загрузка...";
+
+    const response = await fetch(
+        `/api/csv?name=${encodeURIComponent(name)}`
+    );
+
+    const result = await response.json();
+
+    if (!result.ok) {
+        $("csvInfo").textContent = result.error;
+        return;
+    }
+
+    $("csvInfo").textContent =
+        `${result.name}: ${result.rows} строк, ${result.columns.length} колонок`;
+
+    $("csvHead").innerHTML = `
+        <tr>
+            ${result.columns.map(
+                column => `<th>${escapeHtml(column)}</th>`
+            ).join("")}
+        </tr>
+    `;
+
+    $("csvBody").innerHTML = result.data.map(row => `
+        <tr>
+            ${result.columns.map(column =>
+                `<td>${escapeHtml(row[column] ?? "")}</td>`
+            ).join("")}
+        </tr>
+    `).join("");
+}
+
 async function init() {
   $("uploadAnalyzeBtn").addEventListener("click", uploadAndAnalyze);
 
@@ -637,7 +673,10 @@ async function init() {
     state.selectedGid = defaultGid();
     $("gidInput").value = String(state.selectedGid);
     renderNodeCard(state.roleMap.get(state.selectedGid));
-
+    $("loadCsvBtn").addEventListener(
+        "click",
+        loadCsvPreview
+    );
     bindEvents();
     renderLegend();
     renderClusterDetail(Number($("clusterDetailSelect").value));

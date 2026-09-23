@@ -1,5 +1,7 @@
-from __future__ import annotations
 
+
+from __future__ import annotations
+import pandas as pd
 import argparse
 import json
 import os
@@ -80,7 +82,45 @@ class AppHandler(SimpleHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/api/csv":
+            query = urllib.parse.parse_qs(parsed.query)
+            name = query.get("name", [""])[0]
 
+            allowed = {
+                "nodes_roles.csv",
+                "clusters.csv",
+                "top_nodes.csv",
+            }
+
+            if name not in allowed:
+                self.json_response(
+                    400,
+                    {"ok": False, "error": "Недопустимый CSV"}
+                )
+                return
+
+            path = ROOT / "out" / name
+
+            if not path.exists():
+                self.json_response(
+                    404,
+                    {"ok": False, "error": f"{name} ещё не создан"}
+                )
+                return
+
+            df = pd.read_csv(path)
+
+            self.json_response(
+                200,
+                {
+                    "ok": True,
+                    "name": name,
+                    "rows": len(df),
+                    "columns": df.columns.tolist(),
+                    "data": df.head(100).to_dict(orient="records"),
+                },
+            )
+            return
         super().do_GET()
 
     def do_POST(self):

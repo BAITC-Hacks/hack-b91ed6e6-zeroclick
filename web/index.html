@@ -54,6 +54,7 @@
       <button class="tab active" data-tab="graph">Граф сети</button>
       <button class="tab" data-tab="top">TOP узлов</button>
       <button class="tab" data-tab="clusters">Кластеры</button>
+      <button class="tab" data-tab="csv">Проверка CSV</button>
     </nav>
 
     <section id="tab-graph" class="tab-panel active">
@@ -173,6 +174,37 @@
         </aside>
       </div>
     </section>
+
+    <section id="tab-csv" class="tab-panel">
+      <div class="card section-card">
+
+          <h2>Проверка CSV</h2>
+
+          <label class="field">
+              <span>Выберите файл</span>
+
+              <select id="csvSelect">
+                  <option value="nodes_roles.csv">nodes_roles.csv</option>
+                  <option value="clusters.csv">clusters.csv</option>
+                  <option value="top_nodes.csv">top_nodes.csv</option>
+              </select>
+          </label>
+
+          <button id="loadCsvBtn" class="btn">
+              Показать CSV
+          </button>
+
+          <p id="csvInfo"></p>
+
+          <div class="table-wrap">
+              <table class="data-table">
+                  <thead id="csvHead"></thead>
+                  <tbody id="csvBody"></tbody>
+              </table>
+          </div>
+
+      </div>
+  </section>
   </main>
 
   <script src="assets/app.js"></script>
