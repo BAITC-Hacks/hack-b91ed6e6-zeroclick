@@ -357,7 +357,7 @@ def hints(G: nx.DiGraph, df: pd.DataFrame):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default="../data", help="папка с parquet-файлами")
+    ap.add_argument("--data", default="./data", help="папка с parquet-файлами")
     ap.add_argument("--out", default="./out", help="куда писать выгрузки")
     a = ap.parse_args()
 
